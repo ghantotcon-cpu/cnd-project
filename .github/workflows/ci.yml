@@ -28,32 +28,64 @@ jobs:
       run: |
         docker build -t ${{ github.repository }}:latest app
 
-    - name: Install Syft
-      run: |
-        curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+name: Secure CI Pipeline
 
-    - name: Generate SBOM
-      run: |
-        syft ${{ github.repository }}:latest -o spdx-json > sbom.json
+on:
+  push:
+    branches: [ "main" ]
 
-    - name: Install Trivy
-      run: |
-        sudo apt-get install -y wget
-        wget https://github.com/aquasecurity/trivy/releases/latest/download/trivy_0.50.1_Linux-64bit.deb
-        sudo dpkg -i trivy_0.50.1_Linux-64bit.deb
+jobs:
+  build-sign:
+    runs-on: ubuntu-latest
 
-    - name: Scan image for vulnerabilities
-      run: |
-        trivy image --exit-code 0 --severity HIGH,CRITICAL ${{ github.repository }}:latest
+    permissions:
+      id-token: write
+      contents: read
 
-    - name: Install Cosign
-      run: |
-        curl -sSfL https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64 -o cosign
-        chmod +x cosign
-        sudo mv cosign /usr/local/bin/
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Sign image with Cosign (keyless)
-      env:
-        COSIGN_EXPERIMENTAL: "true"
-      run: |
-        cosign sign ${{ github.repository }}:latest
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -t ghantotcon-cpu/cnd-project:latest \
+            -f app/Dockerfile \
+            .
+
+      - name: Install Syft
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Generate SBOM
+        run: |
+          syft ghantotcon-cpu/cnd-project:latest -o spdx-json > sbom.json
+
+      - name: Install Trivy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget
+          wget https://github.com/aquasecurity/trivy/releases/latest/download/trivy_0.50.1_Linux-64bit.deb
+          sudo dpkg -i trivy_0.50.1_Linux-64bit.deb
+
+      - name: Scan image for vulnerabilities
+        run: |
+          trivy image --exit-code 0 --severity HIGH,CRITICAL ghantotcon-cpu/cnd-project:latest
+
+      - name: Install Cosign
+        run: |
+          curl -sSfL https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64 -o cosign
+          chmod +x cosign
+          sudo mv cosign /usr/local/bin/
+
+      - name: Sign image with Cosign (keyless)
+        env:
+          COSIGN_EXPERIMENTAL: "true"
+        run: |
+          cosign sign ghantotcon-cpu/cnd-project:latest
+
