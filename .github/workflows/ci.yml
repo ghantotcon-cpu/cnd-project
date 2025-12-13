@@ -13,7 +13,10 @@ jobs:
       contents: read
 
     steps:
-    - name: Checkout
+    - name: Checkout-
+ name: Build Docker image
+  run: |
+    docker build -t ghantotcon-cpu/cnd-project:latest -f app/Dockerfile app
       uses: actions/checkout@v4
 
     - name: Set up Go
