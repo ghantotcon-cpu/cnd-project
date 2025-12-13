@@ -13,36 +13,6 @@ jobs:
       contents: read
 
     steps:
-    - name: Checkout-
- name: Build Docker image
-  run: |
-    docker build -t ghantotcon-cpu/cnd-project:latest -f app/Dockerfile app
-      uses: actions/checkout@v4
-
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.22'
-
-    - name: Build Docker image
-      run: |
-        docker build -t ${{ github.repository }}:latest app
-
-name: Secure CI Pipeline
-
-on:
-  push:
-    branches: [ "main" ]
-
-jobs:
-  build-sign:
-    runs-on: ubuntu-latest
-
-    permissions:
-      id-token: write
-      contents: read
-
-    steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -50,6 +20,16 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
+          cache: false
+
+      - name: Debug workspace
+        run: |
+          echo "ROOT:"
+          ls -la
+          echo "APP:"
+          ls -la app
+          echo "DOCKERFILE:"
+          cat app/Dockerfile
 
       - name: Build Docker image
         run: |
@@ -57,35 +37,3 @@ jobs:
             -t ghantotcon-cpu/cnd-project:latest \
             -f app/Dockerfile \
             .
-
-      - name: Install Syft
-        run: |
-          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
-
-      - name: Generate SBOM
-        run: |
-          syft ghantotcon-cpu/cnd-project:latest -o spdx-json > sbom.json
-
-      - name: Install Trivy
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y wget
-          wget https://github.com/aquasecurity/trivy/releases/latest/download/trivy_0.50.1_Linux-64bit.deb
-          sudo dpkg -i trivy_0.50.1_Linux-64bit.deb
-
-      - name: Scan image for vulnerabilities
-        run: |
-          trivy image --exit-code 0 --severity HIGH,CRITICAL ghantotcon-cpu/cnd-project:latest
-
-      - name: Install Cosign
-        run: |
-          curl -sSfL https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64 -o cosign
-          chmod +x cosign
-          sudo mv cosign /usr/local/bin/
-
-      - name: Sign image with Cosign (keyless)
-        env:
-          COSIGN_EXPERIMENTAL: "true"
-        run: |
-          cosign sign ghantotcon-cpu/cnd-project:latest
-
