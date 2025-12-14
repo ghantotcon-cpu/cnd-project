@@ -2,11 +2,11 @@ FROM golang:1.22-alpine
 
 WORKDIR /app
 
-# نسخ ملفات Go من مجلد app
-COPY app/go.mod app/go.sum ./
+# نسخ ملف go.mod فقط (لا نفترض وجود go.sum)
+COPY app/go.mod ./
 RUN go mod download
 
-# نسخ بقية الكود
+# نسخ كود التطبيق
 COPY app/ .
 
 RUN go build -o app
