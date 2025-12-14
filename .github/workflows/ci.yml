@@ -1,4 +1,5 @@
-name: Go CI + Docker + Security + Cosign
+name: Go CI + Docker + Se
+curity + Cosign
 
 on:
   push:
@@ -30,7 +31,7 @@ jobs:
       - name: Build Docker image
         run: |
           docker build \
-            -t ghantotcon-cpu/cnd-project:ci \
+            -t ghantotcon/cnd-project:ci \
             -f app/Dockerfile \
             .
       - name: Login to Docker Hub
@@ -46,7 +47,7 @@ jobs:
 
       - name: Generate SBOM
         run: |
-          syft ghantotcon-cpu/cnd-project:ci -o spdx-json > sbom.json
+          syft ghantotcon/cnd-project:ci -o spdx-json > sbom.json
 
       - name: Install Trivy
         run: |
@@ -58,7 +59,7 @@ jobs:
           trivy image \
             --severity HIGH,CRITICAL \
             --exit-code 0 \
-            ghantotcon-cpu/cnd-project:ci
+            ghantotcon/cnd-project:ci
 
       - name: Install Cosign
         run: |
