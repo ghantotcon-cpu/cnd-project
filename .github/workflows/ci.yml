@@ -1,5 +1,4 @@
-name: Go CI + Docker + Se
-curity + Cosign
+name: Go CI + Docker + Security + Cosign
 
 on:
   push:
