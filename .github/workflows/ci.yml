@@ -1,13 +1,3 @@
-name: Secure CI Pipeline
-
-on:
-  push:
-    branches: [ "main" ]
-
-jobs:
-  build-sign:
-    runs-on: ubuntu-latest
-
 name: Go CI (Debug Clean)
 
 on:
@@ -39,4 +29,3 @@ jobs:
         run: |
           go mod tidy
           go build -o app
-
