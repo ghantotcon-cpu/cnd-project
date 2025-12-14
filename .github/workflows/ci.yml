@@ -1,4 +1,3 @@
-
 name: Go CI + Docker + Security
 
 on:
@@ -10,11 +9,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ===== Checkout =====
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ===== Go Build =====
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -26,7 +23,6 @@ jobs:
           go mod tidy
           go build -o app
 
-      # ===== Docker Build =====
       - name: Build Docker image
         run: |
           docker build \
@@ -34,7 +30,6 @@ jobs:
             -f app/Dockerfile \
             .
 
-      # ===== SBOM =====
       - name: Install Syft
         run: |
           curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh \
@@ -44,8 +39,7 @@ jobs:
         run: |
           syft ghantotcon-cpu/cnd-project:ci -o spdx-json > sbom.json
 
-      # ===== Security Scan (Trivy) =====
-            - name: Install Trivy
+      - name: Install Trivy
         run: |
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
           | sudo sh -s -- -b /usr/local/bin
@@ -56,4 +50,5 @@ jobs:
             --severity HIGH,CRITICAL \
             --exit-code 0 \
             ghantotcon-cpu/cnd-project:ci
+
 
