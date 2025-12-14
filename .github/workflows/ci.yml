@@ -1,11 +1,11 @@
-name: Go CI (Debug Clean)
+name: Go CI + Docker Build
 
 on:
   push:
     branches: [ "main" ]
 
 jobs:
-  go-build:
+  build:
     runs-on: ubuntu-latest
 
     steps:
@@ -17,15 +17,16 @@ jobs:
         with:
           go-version: '1.22'
 
-      - name: Show workspace
-        run: |
-          echo "ROOT:"
-          ls -la
-          echo "APP:"
-          ls -la app
-
       - name: Build Go application
         working-directory: app
         run: |
           go mod tidy
           go build -o app
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -t ghantotcon-cpu/cnd-project:ci \
+            -f app/Dockerfile \
+            .
+
