@@ -45,14 +45,10 @@ jobs:
           syft ghantotcon-cpu/cnd-project:ci -o spdx-json > sbom.json
 
       # ===== Security Scan (Trivy) =====
-      - name: Install Trivy
+            - name: Install Trivy
         run: |
-          sudo apt-get update
-          sudo apt-get install -y curl
-          curl -fsSL https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo gpg --dearmor -o /usr/share/keyrings/trivy.gpg
-          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb stable main" | sudo tee /etc/apt/sources.list.d/trivy.list
-          sudo apt-get update
-          sudo apt-get install -y trivy
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+          | sudo sh -s -- -b /usr/local/bin
 
       - name: Scan image for vulnerabilities
         run: |
