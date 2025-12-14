@@ -8,9 +8,15 @@ jobs:
   build-sign:
     runs-on: ubuntu-latest
 
-    permissions:
-      id-token: write
-      contents: read
+name: Go CI (Debug Clean)
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  go-build:
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
@@ -20,20 +26,17 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
-          cache: false
 
-      - name: Debug workspace
+      - name: Show workspace
         run: |
           echo "ROOT:"
           ls -la
           echo "APP:"
           ls -la app
-          echo "DOCKERFILE:"
-          cat app/Dockerfile
 
-      - name: Build Docker image
+      - name: Build Go application
+        working-directory: app
         run: |
-          docker build \
-            -t ghantotcon-cpu/cnd-project:latest \
-            -f app/Dockerfile \
-            .
+          go mod tidy
+          go build -o app
+
