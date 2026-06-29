@@ -1,0 +1,104 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cnd-demo-app
+  namespace: cnd-demo
+  labels:
+    app: cnd-demo-app
+    version: "1.0.0"
+    app.kubernetes.io/name: cnd-demo-app
+    app.kubernetes.io/part-of: cnd-project
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cnd-demo-app
+  template:
+    metadata:
+      labels:
+        app: cnd-demo-app
+        version: "1.0.0"
+      annotations:
+        # SBOM and provenance annotations for traceability
+        cnd.security/sbom-format: "CycloneDX"
+        cnd.security/signed-by: "cosign-keyless"
+        cnd.security/slsa-level: "3"
+    spec:
+      serviceAccountName: cnd-demo-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: cnd-demo-app
+          # Replace with your actual image after build
+          image: ghcr.io/ghantotcon-cpu/cnd-project/cnd-demo-app:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: APP_VERSION
+              value: "1.0.0"
+            - name: SLSA_LEVEL
+              value: "3"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: tmp-dir
+              mountPath: /tmp
+      volumes:
+        - name: tmp-dir
+          emptyDir: {}
+      automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cnd-demo-sa
+  namespace: cnd-demo
+  labels:
+    app: cnd-demo-app
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cnd-demo-app
+  namespace: cnd-demo
+  labels:
+    app: cnd-demo-app
+spec:
+  selector:
+    app: cnd-demo-app
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+  type: ClusterIP

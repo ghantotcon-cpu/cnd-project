@@ -1,0 +1,61 @@
+# Helm values for Falco deployment (using falcosecurity/falco chart)
+# Install with:
+#   helm repo add falcosecurity https://falcosecurity.github.io/charts
+#   helm install falco falcosecurity/falco -n falco --create-namespace -f falco-values.yaml
+
+driver:
+  kind: modern_ebpf   # Use modern eBPF driver (no kernel module needed)
+
+collectors:
+  enabled: true
+  docker:
+    enabled: false
+  cri:
+    enabled: true
+    socketPath: /run/containerd/containerd.sock
+
+falco:
+  rules_file:
+    - /etc/falco/falco_rules.yaml
+    - /etc/falco/falco_rules.local.yaml
+    - /etc/falco/custom_rules/cnd-rules.yaml
+
+  json_output: true
+  json_include_output_property: true
+  json_include_tags_property: true
+
+  log_level: info
+  priority: debug         # Capture all priorities
+
+  # Output to stdout (for log aggregation)
+  stdout_output:
+    enabled: true
+
+  # Output to file (for metrics collection)
+  file_output:
+    enabled: true
+    keep_alive: false
+    filename: /var/log/falco/cnd-alerts.json
+
+  # Webhook output (optional: send to SIEM)
+  http_output:
+    enabled: false
+    url: http://falco-webhook-sink.cnd-demo:8088
+
+customRules:
+  cnd-rules.yaml: |
+    # Loaded from kubernetes/falco/custom-rules.yaml
+    # Apply separately via ConfigMap
+
+tolerations:
+  - effect: NoSchedule
+    key: node-role.kubernetes.io/control-plane
+    operator: Exists
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 1024Mi
