@@ -1,0 +1,114 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: verify-image-signature
+  annotations:
+    policies.kyverno.io/title: Verify Image Signatures (Cosign/Sigstore)
+    policies.kyverno.io/category: Software Supply Chain Security
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/description: >
+      This policy ensures that all container images deployed in the cnd-demo
+      namespace are cryptographically signed using Cosign (Sigstore keyless signing).
+      Unsigned images are blocked at admission time — measuring admission latency
+      overhead is part of the research evaluation.
+spec:
+  validationFailureAction: Enforce
+  background: false
+  rules:
+    # ─────────────────────────────────────────────
+    # RULE 1: Require Cosign Signature
+    # ─────────────────────────────────────────────
+    - name: verify-cosign-signature
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaces: [cnd-demo]
+      verifyImages:
+        - imageReferences:
+            - "ghcr.io/ghantotcon-cpu/cnd-project/*"
+          attestors:
+            - entries:
+                - keyless:
+                    subject: "https://github.com/ghantotcon-cpu/cnd-project/*"
+                    issuer: "https://token.actions.githubusercontent.com"
+                    rekor:
+                      url: https://rekor.sigstore.dev
+          mutateDigest: true    # Pin to digest for immutability
+          verifyDigest: true
+          required: true
+
+    # ─────────────────────────────────────────────
+    # RULE 2: Require SBOM Attestation
+    # ─────────────────────────────────────────────
+    - name: verify-sbom-attestation
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaces: [cnd-demo]
+      verifyImages:
+        - imageReferences:
+            - "ghcr.io/ghantotcon-cpu/cnd-project/*"
+          attestations:
+            - type: https://cyclonedx.org/bom
+              attestors:
+                - entries:
+                    - keyless:
+                        subject: "https://github.com/ghantotcon-cpu/cnd-project/*"
+                        issuer: "https://token.actions.githubusercontent.com"
+
+    # ─────────────────────────────────────────────
+    # RULE 3: Require SLSA Provenance
+    # ─────────────────────────────────────────────
+    - name: verify-slsa-provenance
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaces: [cnd-demo]
+      verifyImages:
+        - imageReferences:
+            - "ghcr.io/ghantotcon-cpu/cnd-project/*"
+          attestations:
+            - type: https://slsa.dev/provenance/v1
+              attestors:
+                - entries:
+                    - keyless:
+                        subject: "https://github.com/slsa-framework/slsa-github-generator/*"
+                        issuer: "https://token.actions.githubusercontent.com"
+              conditions:
+                - all:
+                    - key: "{{ buildDefinition.buildType }}"
+                      operator: Equals
+                      value: "https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1"
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-unsigned-images
+  annotations:
+    policies.kyverno.io/title: Disallow Unsigned Images
+    policies.kyverno.io/category: Software Supply Chain Security
+    policies.kyverno.io/severity: critical
+    policies.kyverno.io/description: >
+      Block any image NOT from the trusted registry (ghcr.io/ghantotcon-cpu).
+      Used to simulate and detect image tampering attacks.
+spec:
+  validationFailureAction: Enforce
+  background: false
+  rules:
+    - name: restrict-image-registry
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaces: [cnd-demo]
+      validate:
+        message: >
+          Images must come from trusted registry: ghcr.io/ghantotcon-cpu.
+          Unsigned or unknown images are blocked (supply chain policy violation).
+        pattern:
+          spec:
+            containers:
+              - image: "ghcr.io/ghantotcon-cpu/*"

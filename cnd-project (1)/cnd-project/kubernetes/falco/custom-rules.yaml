@@ -1,0 +1,222 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Falco Custom Rules – Supply Chain Security Monitoring
+# CND Project: Integrating SLSA + Sigstore + SBOM with Runtime Verification
+#
+# These rules enrich runtime detection with build-time provenance context,
+# addressing the research gap between static and dynamic security layers.
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ─────────────────────────────────────────────
+# MACRO DEFINITIONS
+# ─────────────────────────────────────────────
+
+- macro: cnd_demo_namespace
+  condition: k8s.ns.name = "cnd-demo"
+
+- macro: trusted_binaries
+  condition: >
+    proc.name in (python3, gunicorn, sh, bash, ps, cat, ls, id, whoami,
+                  python, pip, pip3)
+
+- macro: sensitive_directories
+  condition: >
+    fd.name startswith /etc or
+    fd.name startswith /proc or
+    fd.name startswith /sys or
+    fd.name startswith /root or
+    fd.name startswith /var/run/secrets
+
+- macro: network_tools
+  condition: >
+    proc.name in (nc, ncat, netcat, nmap, curl, wget, socat, tcpdump, ssh,
+                  scp, ftp, telnet)
+
+- macro: package_managers
+  condition: >
+    proc.name in (apt, apt-get, yum, dnf, rpm, dpkg, pip, pip3, npm, yarn,
+                  gem, go, cargo)
+
+# ─────────────────────────────────────────────
+# RULE 1: Unexpected Process in cnd-demo Container
+# (Supply Chain Tampering Indicator)
+# ─────────────────────────────────────────────
+- rule: CND - Unexpected Process Execution
+  desc: >
+    Detects processes that are NOT part of the declared SBOM/image manifest
+    running inside cnd-demo containers. Indicates possible supply chain tampering
+    or post-deployment injection — the key research gap this project addresses.
+  condition: >
+    spawned_process and
+    cnd_demo_namespace and
+    container and
+    not trusted_binaries and
+    not proc.name in (gunicorn)
+  output: >
+    [CND-SC-001] Unexpected process in supply-chain-verified container
+    (image=%container.image.repository:%container.image.tag
+     proc=%proc.name pid=%proc.pid
+     parent=%proc.pname cmdline=%proc.cmdline
+     user=%user.name ns=%k8s.ns.name pod=%k8s.pod.name
+     SLSA_CONTEXT=verify_against_sbom)
+  priority: WARNING
+  tags: [supply_chain, cnd_project, tampering, process]
+
+# ─────────────────────────────────────────────
+# RULE 2: Shell Spawned in cnd-demo Container
+# (Critical - Container Escape Precursor)
+# ─────────────────────────────────────────────
+- rule: CND - Shell Spawned in Verified Container
+  desc: >
+    A shell was spawned inside a container that is supposed to only run the
+    Flask/Gunicorn application. This is a strong indicator of exploitation,
+    container breakout attempt, or command injection. Build-time SBOM shows
+    no shell is expected at runtime.
+  condition: >
+    spawned_process and
+    cnd_demo_namespace and
+    container and
+    proc.name in (bash, sh, dash, zsh, ksh, tcsh, fish) and
+    proc.pname != gunicorn
+  output: >
+    [CND-SC-002] CRITICAL: Shell spawned in supply-chain-verified container
+    (image=%container.image.repository:%container.image.tag
+     shell=%proc.name pid=%proc.pid parent=%proc.pname
+     cmdline=%proc.cmdline user=%user.name
+     pod=%k8s.pod.name ns=%k8s.ns.name
+     SUPPLY_CHAIN_ALERT=sbom_violation_shell_not_declared)
+  priority: CRITICAL
+  tags: [supply_chain, cnd_project, shell, container_escape, critical]
+
+# ─────────────────────────────────────────────
+# RULE 3: Package Manager Execution (Malicious Dependency Attack)
+# ─────────────────────────────────────────────
+- rule: CND - Package Manager in Runtime Container
+  desc: >
+    A package manager (pip, apt, etc.) was executed inside a running container.
+    This could indicate a malicious dependency injection attack — an attacker
+    attempting to install malware or backdoors post-deployment.
+    This contradicts the SBOM-declared component inventory.
+  condition: >
+    spawned_process and
+    cnd_demo_namespace and
+    container and
+    package_managers
+  output: >
+    [CND-SC-003] Package manager executed in runtime — SBOM violation detected
+    (image=%container.image.repository:%container.image.tag
+     tool=%proc.name pid=%proc.pid cmdline=%proc.cmdline
+     user=%user.name pod=%k8s.pod.name ns=%k8s.ns.name
+     SBOM_VIOLATION=new_package_installation_not_in_sbom)
+  priority: CRITICAL
+  tags: [supply_chain, cnd_project, sbom, malicious_dependency, critical]
+
+# ─────────────────────────────────────────────
+# RULE 4: Sensitive File Access
+# ─────────────────────────────────────────────
+- rule: CND - Sensitive File Read in Container
+  desc: >
+    A container in cnd-demo is reading sensitive files (credentials, secrets,
+    /proc, /etc/shadow, etc.). May indicate exploitation of a vulnerability
+    or credential harvesting attack.
+  condition: >
+    open_read and
+    cnd_demo_namespace and
+    container and
+    sensitive_directories and
+    not proc.name in (python3, gunicorn)
+  output: >
+    [CND-SC-004] Sensitive file access detected in verified container
+    (image=%container.image.repository:%container.image.tag
+     file=%fd.name proc=%proc.name pid=%proc.pid
+     user=%user.name pod=%k8s.pod.name ns=%k8s.ns.name)
+  priority: ERROR
+  tags: [supply_chain, cnd_project, file_access, credentials]
+
+# ─────────────────────────────────────────────
+# RULE 5: Network Tool Execution (Exfiltration / C2)
+# ─────────────────────────────────────────────
+- rule: CND - Network Tool in Container
+  desc: >
+    A network tool (nc, curl, wget, nmap, etc.) was executed inside the
+    cnd-demo container. This is not declared in the SBOM and may indicate
+    data exfiltration, command-and-control communication, or lateral movement.
+  condition: >
+    spawned_process and
+    cnd_demo_namespace and
+    container and
+    network_tools
+  output: >
+    [CND-SC-005] Network tool executed — possible exfiltration/C2 activity
+    (image=%container.image.repository:%container.image.tag
+     tool=%proc.name pid=%proc.pid cmdline=%proc.cmdline
+     user=%user.name pod=%k8s.pod.name ns=%k8s.ns.name
+     SBOM_VIOLATION=network_tool_not_declared)
+  priority: CRITICAL
+  tags: [supply_chain, cnd_project, network, exfiltration, c2]
+
+# ─────────────────────────────────────────────
+# RULE 6: Container Running as Root
+# (Security Posture Violation)
+# ─────────────────────────────────────────────
+- rule: CND - Container Running as Root
+  desc: >
+    A container in cnd-demo is running as root (UID 0). The Dockerfile and
+    Kubernetes security context both enforce non-root. This indicates the
+    security context was bypassed or a privileged container was injected.
+  condition: >
+    spawned_process and
+    cnd_demo_namespace and
+    container and
+    user.uid = 0 and
+    not proc.name in (pause)
+  output: >
+    [CND-SC-006] Container running as root — security policy violated
+    (image=%container.image.repository:%container.image.tag
+     proc=%proc.name pid=%proc.pid user=%user.name uid=%user.uid
+     pod=%k8s.pod.name ns=%k8s.ns.name)
+  priority: ERROR
+  tags: [supply_chain, cnd_project, root, privilege_escalation]
+
+# ─────────────────────────────────────────────
+# RULE 7: Write to Root Filesystem
+# ─────────────────────────────────────────────
+- rule: CND - Write to Read-Only Filesystem
+  desc: >
+    A write was attempted to the container filesystem, which should be
+    read-only (readOnlyRootFilesystem: true in security context).
+    Indicates tampering or exploitation.
+  condition: >
+    open_write and
+    cnd_demo_namespace and
+    container and
+    not fd.name startswith /tmp and
+    not fd.name startswith /proc
+  output: >
+    [CND-SC-007] Write to read-only container filesystem
+    (image=%container.image.repository:%container.image.tag
+     file=%fd.name proc=%proc.name pid=%proc.pid
+     user=%user.name pod=%k8s.pod.name)
+  priority: ERROR
+  tags: [supply_chain, cnd_project, filesystem, tampering]
+
+# ─────────────────────────────────────────────
+# RULE 8: Unexpected Outbound Connection
+# ─────────────────────────────────────────────
+- rule: CND - Unexpected Outbound Network Connection
+  desc: >
+    The cnd-demo application established an outbound connection to an
+    unexpected destination. The application should only serve inbound HTTP
+    on port 8080. Outbound connections may indicate C2 communication.
+  condition: >
+    outbound and
+    cnd_demo_namespace and
+    container and
+    not (fd.sport in (8080, 443, 80)) and
+    fd.net != "127.0.0.1/8"
+  output: >
+    [CND-SC-008] Unexpected outbound connection from supply-chain-verified container
+    (image=%container.image.repository:%container.image.tag
+     connection=%fd.name proto=%fd.proto sport=%fd.sport dport=%fd.dport
+     proc=%proc.name pod=%k8s.pod.name ns=%k8s.ns.name)
+  priority: WARNING
+  tags: [supply_chain, cnd_project, network, c2]
