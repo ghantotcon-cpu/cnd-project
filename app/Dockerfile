@@ -4,10 +4,9 @@ RUN apk add --no-cache git ca-certificates tzdata
 
 WORKDIR /build
 
-COPY go.mod ./
-RUN go mod download
-
 COPY . .
+
+RUN go mod download
 
 ARG BUILD_COMMIT=unknown
 ARG BUILD_TIME=unknown
