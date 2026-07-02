@@ -1,36 +1,31 @@
 FROM golang:1.21-alpine AS builder
 
-RUN apk add --no-cache git ca-certificates tzdata
+  RUN apk add --no-cache ca-certificates tzdata
 
-WORKDIR /build
+  WORKDIR /build
 
-COPY . .
+  COPY main.go go.mod ./
 
-RUN go mod download
+  RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+      -ldflags="-w -s \
+        -X main.BuildCommit=${BUILD_COMMIT:-unknown} \
+        -X main.BuildTime=${BUILD_TIME:-unknown} \
+        -X main.AppVersion=${APP_VERSION:-1.0.0} \
+        -X main.SLSALevel=3" \
+      -o /build/cnd-app .
 
-ARG BUILD_COMMIT=unknown
-ARG BUILD_TIME=unknown
-ARG APP_VERSION=1.0.0
+  FROM gcr.io/distroless/static-debian12:nonroot
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-    -ldflags="-w -s \
-      -X main.BuildCommit=${BUILD_COMMIT} \
-      -X main.BuildTime=${BUILD_TIME} \
-      -X main.AppVersion=${APP_VERSION} \
-      -X main.SLSALevel=3" \
-    -o /build/cnd-app ./...
+  LABEL org.opencontainers.image.source="https://github.com/ghantotcon-cpu/cnd-project"
+  LABEL org.opencontainers.image.description="CND Project — Supply Chain Security Microservice (Go)"
+  LABEL org.opencontainers.image.licenses="MIT"
 
-FROM gcr.io/distroless/static-debian12:nonroot
+  COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+  COPY --from=builder /build/cnd-app /cnd-app
 
-LABEL org.opencontainers.image.source="https://github.com/ghantotcon-cpu/cnd-project"
-LABEL org.opencontainers.image.description="CND Project — Supply Chain Security Microservice (Go)"
-LABEL org.opencontainers.image.licenses="MIT"
+  USER nonroot:nonroot
 
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=builder /build/cnd-app /cnd-app
+  EXPOSE 8080
 
-USER nonroot:nonroot
-
-EXPOSE 8080
-
-ENTRYPOINT ["/cnd-app"]
+  ENTRYPOINT ["/cnd-app"]
+  
