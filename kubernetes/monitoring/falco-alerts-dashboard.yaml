@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: falco-alert-collector
+  namespace: cnd-demo
+  labels:
+    app: cnd-project
+    component: monitoring
+data:
+  # Script to collect and categorize Falco alerts from cnd-demo namespace
+  collect.sh: |
+    #!/bin/bash
+    # Collect Falco alerts and format them for research metrics
+    kubectl logs -n falco -l app.kubernetes.io/name=falco --since=1h \
+      | grep "CND-SC" \
+      | python3 -c "
+    import sys, json, collections
+
+    alerts = []
+    rule_counts = collections.Counter()
+
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            data = json.loads(line)
+            rule = data.get('rule', 'unknown')
+            rule_counts[rule] += 1
+            alerts.append({
+                'time': data.get('time'),
+                'rule': rule,
+                'priority': data.get('priority'),
+                'output': data.get('output', '')[:200],
+                'tags': data.get('tags', [])
+            })
+        except:
+            pass
+
+    print(json.dumps({
+        'total_alerts': len(alerts),
+        'by_rule': dict(rule_counts),
+        'alerts': alerts[-20:]  # Last 20 alerts
+    }, indent=2))
+    "
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: metrics-collection-script
+  namespace: cnd-demo
+data:
+  # Baseline pod for comparison (no Falco, no Kyverno)
+  baseline-test.yaml: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: baseline-metrics
+      namespace: default
+    spec:
+      containers:
+        - name: test
+          image: python:3.12-slim
+          command: ["sleep", "300"]
+      restartPolicy: Never

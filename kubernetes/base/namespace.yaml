@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cnd-demo
+  labels:
+    # Label for Kyverno policies to target
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+    # Label for Falco monitoring
+    falco-monitoring: enabled
+    app.kubernetes.io/part-of: cnd-project

@@ -1,0 +1,100 @@
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: cnd-supply-chain-monitor
+  namespace: kube-system
+  labels:
+    app: cnd-project
+    component: tetragon-policy
+  annotations:
+    cnd.security/description: >
+      Tetragon TracingPolicy for CND Project.
+      Monitors process execution and correlates with SBOM provenance data.
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: cnd-project
+
+  # ── Monitor process execution ──────────────────────────────────
+  kprobes:
+    - call: "sys_execve"
+      syscall: true
+      return: false
+      args:
+        - index: 0
+          type: "string"
+      selectors:
+        - matchNamespaces:
+            - operator: In
+              values:
+                - "cnd-demo"
+          matchArgs:
+            - index: 0
+              operator: "NotEqual"
+              values:
+                - "/cnd-app"
+                - "/pause"
+          matchActions:
+            - action: Sigkill      # Kill unauthorized processes immediately
+              argError: EPERM
+
+    # ── Monitor sensitive file access ──
+    - call: "sys_openat"
+      syscall: true
+      return: false
+      args:
+        - index: 1
+          type: "string"
+      selectors:
+        - matchNamespaces:
+            - operator: In
+              values:
+                - "cnd-demo"
+          matchArgs:
+            - index: 1
+              operator: "Prefix"
+              values:
+                - "/etc/shadow"
+                - "/etc/passwd"
+                - "/root/"
+                - "/proc/1/"
+          matchActions:
+            - action: Post        # Log but don't kill
+              rateLimit: "1/min"
+
+    # ── Monitor network connections ──
+    - call: "sys_connect"
+      syscall: true
+      return: false
+      args:
+        - index: 0
+          type: "int"
+      selectors:
+        - matchNamespaces:
+            - operator: In
+              values:
+                - "cnd-demo"
+          matchActions:
+            - action: Post
+              rateLimit: "10/min"
+
+  # ── Pod-level tracing (eBPF LSM) ──────────────────────────────
+  tracing:
+    - call: "security_bprm_check"
+      syscall: false
+      return: false
+      args:
+        - index: 0
+          type: "linux_binprm"
+      selectors:
+        - matchNamespaces:
+            - operator: In
+              values:
+                - "cnd-demo"
+          matchCapabilities:
+            - operator: "NotIn"
+              values:
+                - "CAP_SYS_ADMIN"
+          matchActions:
+            - action: Post
+              rateLimit: "5/min"
