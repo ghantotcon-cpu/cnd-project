@@ -4,13 +4,22 @@ FROM golang:1.21-alpine AS builder
 
   WORKDIR /build
 
-  COPY main.go go.mod ./
+  COPY . .
 
-  RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+  ARG BUILD_COMMIT=unknown
+  ARG BUILD_TIME=unknown
+  ARG APP_VERSION=1.0.0
+
+  # Works with both build contexts:
+  # - context=./app  → main.go is at /build/main.go
+  # - context=.      → main.go is at /build/app/main.go
+  RUN SRCDIR=$(dirname $(find /build -name "main.go" | head -1)) && \
+      cd "$SRCDIR" && \
+      CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
       -ldflags="-w -s \
-        -X main.BuildCommit=${BUILD_COMMIT:-unknown} \
-        -X main.BuildTime=${BUILD_TIME:-unknown} \
-        -X main.AppVersion=${APP_VERSION:-1.0.0} \
+        -X main.BuildCommit=${BUILD_COMMIT} \
+        -X main.BuildTime=${BUILD_TIME} \
+        -X main.AppVersion=${APP_VERSION} \
         -X main.SLSALevel=3" \
       -o /build/cnd-app .
 
