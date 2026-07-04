@@ -24,11 +24,7 @@ spec:
         - index: 0
           type: "string"
       selectors:
-        - matchNamespaces:
-            - operator: In
-              values:
-                - "cnd-demo"
-          matchArgs:
+        - matchArgs:
             - index: 0
               operator: "NotEqual"
               values:
@@ -36,7 +32,6 @@ spec:
                 - "/pause"
           matchActions:
             - action: Sigkill      # Kill unauthorized processes immediately
-              argError: EPERM
 
     # ── Monitor sensitive file access ──
     - call: "sys_openat"
@@ -46,11 +41,7 @@ spec:
         - index: 1
           type: "string"
       selectors:
-        - matchNamespaces:
-            - operator: In
-              values:
-                - "cnd-demo"
-          matchArgs:
+        - matchArgs:
             - index: 1
               operator: "Prefix"
               values:
@@ -70,31 +61,6 @@ spec:
         - index: 0
           type: "int"
       selectors:
-        - matchNamespaces:
-            - operator: In
-              values:
-                - "cnd-demo"
-          matchActions:
+        - matchActions:
             - action: Post
               rateLimit: "10/min"
-
-  # ── Pod-level tracing (eBPF LSM) ──────────────────────────────
-  tracing:
-    - call: "security_bprm_check"
-      syscall: false
-      return: false
-      args:
-        - index: 0
-          type: "linux_binprm"
-      selectors:
-        - matchNamespaces:
-            - operator: In
-              values:
-                - "cnd-demo"
-          matchCapabilities:
-            - operator: "NotIn"
-              values:
-                - "CAP_SYS_ADMIN"
-          matchActions:
-            - action: Post
-              rateLimit: "5/min"

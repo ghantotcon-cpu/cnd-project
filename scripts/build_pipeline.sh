@@ -128,23 +128,18 @@ cat > "${PROVENANCE_FILE}" <<EOF
 EOF
 
 # Sign the provenance with Cosign
-if cosign attest --yes \
-    --predicate "${PROVENANCE_FILE}" \
-    --type slsaprovenance1 \
-    "${IMAGE_LATEST}" 2>/dev/null; then
-    info "✅ SLSA provenance signed and attested"
-else
-    # Fallback: sign locally if keyless fails (no OIDC in local env)
-    info "Keyless OIDC unavailable — generating local keypair for signing..."
-    if [ ! -f cosign.key ]; then
-        COSIGN_PASSWORD="" cosign generate-key-pair
-    fi
-    COSIGN_PASSWORD="" cosign attest \
-        --key cosign.key \
-        --predicate "${PROVENANCE_FILE}" \
-        --type slsaprovenance1 \
-        "${IMAGE_LATEST}" || warn "Provenance attestation skipped (local registry may not support OCI attestations)"
+info "Using local keypair for signing (keyless OIDC not reachable from this VM)..."
+if [ ! -f cosign.key ]; then
+    COSIGN_PASSWORD="" cosign generate-key-pair
 fi
+PREDICATE_ONLY_FILE="provenance-predicate.json"
+python3 -c "import json; d=json.load(open('${PROVENANCE_FILE}')); json.dump(d['predicate'], open('${PREDICATE_ONLY_FILE}','w'))"
+COSIGN_PASSWORD="" cosign attest --yes \
+    --tlog-upload=false \
+    --key cosign.key \
+    --predicate "${PREDICATE_ONLY_FILE}" \
+    --type slsaprovenance1 \
+    "${IMAGE_LATEST}" || info "Provenance attestation skipped (local registry may not support OCI attestations)"
 
 SLSA_END=$(date +%s%3N)
 info "✅ SLSA provenance generated in $((SLSA_END - SLSA_START))ms"
@@ -260,17 +255,12 @@ info "✅ Vulnerability scan complete in $((SCAN_END - SCAN_START))ms"
 step "6" "Sign Image (Cosign / Sigstore)"
 SIGN_START=$(date +%s%3N)
 
-if cosign sign --yes "${IMAGE_LATEST}" 2>/dev/null; then
-    info "✅ Image signed (keyless OIDC)"
-    SIGN_METHOD="keyless"
-else
-    info "Falling back to key-based signing..."
-    if [ ! -f cosign.key ]; then
-        COSIGN_PASSWORD="" cosign generate-key-pair
-    fi
-    COSIGN_PASSWORD="" cosign sign --key cosign.key "${IMAGE_LATEST}"
-    SIGN_METHOD="key-based"
+info "Using local keypair for signing (keyless OIDC not reachable from this VM)..."
+if [ ! -f cosign.key ]; then
+    COSIGN_PASSWORD="" cosign generate-key-pair
 fi
+COSIGN_PASSWORD="" cosign sign --yes --tlog-upload=false --key cosign.key "${IMAGE_LATEST}"
+SIGN_METHOD="key-based"
 
 SIGN_END=$(date +%s%3N)
 SIGN_DURATION=$((SIGN_END - SIGN_START))

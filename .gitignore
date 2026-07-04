@@ -1,0 +1,11 @@
+cosign.key
+cosign.pub
+allowed_binaries.json
+allowed_packages.json
+provenance.json
+provenance-predicate.json
+sbom.cyclonedx.json
+sbom.spdx.json
+vuln-report.json
+vuln-summary.json
+evaluation/results/

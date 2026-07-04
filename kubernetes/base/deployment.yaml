@@ -21,7 +21,7 @@ spec:
       annotations:
         # SBOM and provenance annotations for traceability
         cnd.security/sbom-format: "CycloneDX"
-        cnd.security/signed-by: "cosign-keyless"
+        cnd.security/signed-by: "cosign-local-key"
         cnd.security/slsa-level: "3"
     spec:
       serviceAccountName: cnd-demo-sa
@@ -35,7 +35,7 @@ spec:
       containers:
         - name: cnd-demo-app
           # Replace with your actual image after build
-          image: ghcr.io/ghantotcon-cpu/cnd-project/cnd-demo-app:latest
+          image: 10.96.250.229:80/cnd-demo-app:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8080

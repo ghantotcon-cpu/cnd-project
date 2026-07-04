@@ -1,7 +1,5 @@
 FROM golang:1.21-alpine AS builder
 
-  RUN apk add --no-cache ca-certificates tzdata
-
   WORKDIR /build
 
   COPY . .
@@ -29,7 +27,6 @@ FROM golang:1.21-alpine AS builder
   LABEL org.opencontainers.image.description="CND Project — Supply Chain Security Microservice (Go)"
   LABEL org.opencontainers.image.licenses="MIT"
 
-  COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
   COPY --from=builder /build/cnd-app /cnd-app
 
   USER nonroot:nonroot
@@ -37,4 +34,3 @@ FROM golang:1.21-alpine AS builder
   EXPOSE 8080
 
   ENTRYPOINT ["/cnd-app"]
-  

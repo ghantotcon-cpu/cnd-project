@@ -36,7 +36,7 @@ echo "── Operating System ──"
 KERNEL=$(uname -r)
 KERNEL_MAJOR=$(echo "$KERNEL" | cut -d. -f1)
 KERNEL_MINOR=$(echo "$KERNEL" | cut -d. -f2)
-if [ "$KERNEL_MAJOR" -ge 5 ] && [ "$KERNEL_MINOR" -ge 15 ]; then
+if [ "$KERNEL_MAJOR" -gt 5 ] || { [ "$KERNEL_MAJOR" -eq 5 ] && [ "$KERNEL_MINOR" -ge 15 ]; }; then
     ok "Kernel $KERNEL (≥5.15 required for eBPF)"
 else
     fail "Kernel $KERNEL is too old — need ≥5.15 for Falco eBPF"

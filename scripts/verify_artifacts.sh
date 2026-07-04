@@ -35,7 +35,7 @@ if cosign verify \
 else
     # Try key-based verification
     if [ -f cosign.pub ] && \
-        COSIGN_PASSWORD="" cosign verify --key cosign.pub "$IMAGE_REF" 2>/dev/null; then
+        COSIGN_PASSWORD="" cosign verify --key cosign.pub --insecure-ignore-tlog=true "$IMAGE_REF" 2>/dev/null; then
         END=$(date +%s%3N)
         ok "Signature VALID (key-based) — verified in $((END-START))ms"
     else
@@ -55,6 +55,11 @@ if cosign verify-attestation \
     jq -r '.payload | @base64d | fromjson | .predicateType' 2>/dev/null; then
     END=$(date +%s%3N)
     ok "SLSA provenance VALID — $((END-START))ms"
+elif [ -f cosign.pub ] && \
+    cosign verify-attestation --key cosign.pub --insecure-ignore-tlog=true --type slsaprovenance1 "$IMAGE_REF" 2>/dev/null | \
+    jq -r '.payload | @base64d | fromjson | .predicateType' 2>/dev/null; then
+    END=$(date +%s%3N)
+    ok "SLSA provenance VALID (key-based) — $((END-START))ms"
 else
     fail "SLSA provenance NOT found or invalid"
 fi

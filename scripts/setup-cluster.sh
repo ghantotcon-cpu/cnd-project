@@ -12,7 +12,7 @@ warn()  { echo -e "[$(TS)] ${YELLOW}[WARN]${NC}  $*"; }
 error() { echo -e "[$(TS)] ${RED}[ERROR]${NC} $*"; exit 1; }
 
 KYVERNO_VERSION="v1.12.6"
-FALCO_VERSION="4.3.0"
+FALCO_VERSION="4.17.2"
 TETRAGON_VERSION="1.1.0"
 
 # ── 1. Install system tools ──
@@ -86,8 +86,8 @@ start_minikube() {
     fi
     info "Starting Minikube (2 nodes, 8GB RAM, containerd, Calico CNI)..."
     minikube start \
-        --nodes=2 \
-        --memory=8192 \
+        --nodes=1 \
+        --memory=6144 \
         --cpus=4 \
         --driver=docker \
         --container-runtime=containerd \
@@ -110,7 +110,7 @@ install_kyverno() {
     helm repo add kyverno https://kyverno.github.io/kyverno/ --force-update
     helm install kyverno kyverno/kyverno \
         --namespace kyverno --create-namespace \
-        --version "${KYVERNO_VERSION}" \
+        --version "3.2.6" \
         --set admissionController.replicas=1 \
         --wait --timeout=5m
     kubectl apply -f kubernetes/kyverno/verify-images-policy.yaml

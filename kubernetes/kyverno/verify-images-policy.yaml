@@ -71,7 +71,7 @@ spec:
         - imageReferences:
             - "ghcr.io/ghantotcon-cpu/cnd-project/*"
           attestations:
-            - type: https://slsa.dev/provenance/v1
+            - type: https://slsa.dev/provenance/v0.2
               attestors:
                 - entries:
                     - keyless:
@@ -79,9 +79,9 @@ spec:
                         issuer: "https://token.actions.githubusercontent.com"
               conditions:
                 - all:
-                    - key: "{{ buildDefinition.buildType }}"
+                    - key: "{{ buildType }}"
                       operator: Equals
-                      value: "https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1"
+                      value: "https://github.com/slsa-framework/slsa-github-generator/container@v1"
 ---
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
