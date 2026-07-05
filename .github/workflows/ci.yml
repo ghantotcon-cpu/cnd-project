@@ -93,5 +93,6 @@ jobs:
       image: ghcr.io/ghantotcon-cpu/cnd-project/cnd-demo-app
       digest: ${{ needs.build.outputs.image-digest }}
       registry-username: ${{ github.actor }}
+      private-repository: true
     secrets:
       registry-password: ${{ secrets.GITHUB_TOKEN }}
